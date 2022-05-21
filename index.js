@@ -109,6 +109,12 @@ async function run() {
       );
       res.send({ result, token });
     });
+
+    app.delete("/user/:email", verifyJWT, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.deleteOne({ email: email });
+      res.send(result);
+    });
   } finally {
   }
 }
