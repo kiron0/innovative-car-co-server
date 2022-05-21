@@ -38,10 +38,22 @@ async function run() {
     await client.connect();
     console.log("Connected to MongoDB");
 
-    const serviceCollection = client
+    const servicesCollection = client
       .db("innovativeCarCo")
       .collection("services");
     const usersCollection = client.db("innovativeCarCo").collection("users");
+
+    app.get("/services", verifyJWT, async (req, res) => {
+      const services = await servicesCollection.find({}).toArray();
+      res.send(services);
+    });
+
+    app.get("/services/:id", verifyJWT, async (req, res) => {
+      const services = await servicesCollection.findOne({
+        _id: ObjectId(req.params.id),
+      });
+      res.send(services);
+    });
 
     const verifyAdmin = async (req, res, next) => {
       const requester = req.decoded.email;
@@ -55,16 +67,26 @@ async function run() {
       }
     };
 
-    app.get("/services", verifyJWT, async (req, res) => {
-      const services = await serviceCollection.find({}).toArray();
-      res.send(services);
+    app.get("/user", async (req, res) => {
+      const users = await usersCollection.find().toArray();
+      res.send(users);
     });
 
-    app.get("/services/:id", verifyJWT, async (req, res) => {
-      const services = await serviceCollection.findOne({
-        _id: ObjectId(req.params.id),
-      });
-      res.send(services);
+    app.get("/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await userCollection.findOne({ email: email });
+      const isAdmin = user.role === "admin";
+      res.send({ admin: isAdmin });
+    });
+
+    app.put("/user/admin/", verifyJWT, verifyAdmin, async (req, res) => {
+      const email = req.body.email;
+      const filter = { email: email };
+      const updateDoc = {
+        $set: { role: "admin" },
+      };
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
   } finally {
   }
