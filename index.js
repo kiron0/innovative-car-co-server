@@ -38,21 +38,51 @@ async function run() {
     await client.connect();
     console.log("Connected to MongoDB");
 
-    const servicesCollection = client
-      .db("innovativeCarCo")
-      .collection("services");
+    const partsCollection = client.db("innovativeCarCo").collection("parts");
     const usersCollection = client.db("innovativeCarCo").collection("users");
+    const orderCollection = client.db("innovativeCarCo").collection("orders");
+    const reviewCollection = client.db("innovativeCarCo").collection("reviews");
 
-    app.get("/services", verifyJWT, async (req, res) => {
-      const services = await servicesCollection.find({}).toArray();
-      res.send(services);
+    app.get("/parts", verifyJWT, async (req, res) => {
+      let sort;
+      if (req.query.sort) {
+        sort = { _id: -1 };
+      }
+      const parts = await partsCollection.find({}).sort(sort).toArray();
+      res.send(parts);
     });
 
-    app.get("/services/:id", verifyJWT, async (req, res) => {
-      const services = await servicesCollection.findOne({
+    app.post("/parts", async (req, res) => {
+      const parts = req.body;
+      const result = await partsCollection.insertOne(parts);
+      res.send(result);
+    });
+
+    app.get("/parts/:id", verifyJWT, async (req, res) => {
+      const parts = await partsCollection.findOne({
         _id: ObjectId(req.params.id),
       });
-      res.send(services);
+      res.send(parts);
+    });
+
+    app.put("/parts/:id", async (req, res) => {
+      const id = req.params.id;
+      const body = req.body;
+      const query = {
+        email: req.body.email,
+        title: req.body.title,
+      };
+      const exists = await partsCollection.findOne(query);
+      const result = await partsCollection.updateOne(
+        { _id: ObjectId(id) },
+        { $set: body },
+        { upsert: true }
+      );
+      if (exists) {
+        return res.send({ success: false, order: exists });
+      } else {
+        res.send({ success: true, order: result });
+      }
     });
 
     const verifyAdmin = async (req, res, next) => {
@@ -67,8 +97,40 @@ async function run() {
       }
     };
 
-    app.get("/user", async (req, res) => {
-      const users = await usersCollection.find().toArray();
+    app.get("/my-orders", verifyJWT, async (req, res) => {
+      const decodedEmail = req.decoded.email;
+      const email = req.query.email;
+      if (email === decodedEmail) {
+        const myOrders = await orderCollection.find({ email: email }).toArray();
+        res.send(myOrders);
+      } else {
+        res.status(403).send({ message: "forbidden access" });
+      }
+    });
+
+    app.get("/order/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const booking = await orderCollection.findOne(query);
+      res.send(booking);
+    });
+
+    app.post("/order", async (req, res) => {
+      const order = req.body;
+      const query = {
+        email: order.email,
+        title: order.title,
+      };
+      const exists = await orderCollection.findOne(query);
+      if (exists) {
+        return res.send({ success: false, order: exists });
+      }
+      const result = await orderCollection.insertOne(order);
+      return res.send({ success: true, result });
+    });
+
+    app.get("/user", verifyJWT, async (req, res) => {
+      const users = await usersCollection.find({}).toArray();
       res.send(users);
     });
 
@@ -105,7 +167,7 @@ async function run() {
       const token = jwt.sign(
         { email: email },
         process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: "1d" }
+        { expiresIn: "7d" }
       );
       res.send({ result, token });
     });
@@ -113,6 +175,13 @@ async function run() {
     app.delete("/user/:email", verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
       const result = await usersCollection.deleteOne({ email: email });
+      res.send(result);
+    });
+
+    // post review with uid params
+    app.post("/reviews", verifyJWT, async (req, res) => {
+      const review = req.body;
+      const result = await reviewCollection.insertOne(review);
       res.send(result);
     });
   } finally {
