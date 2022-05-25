@@ -3,6 +3,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -42,6 +43,18 @@ async function run() {
     const usersCollection = client.db("innovativeCarCo").collection("users");
     const orderCollection = client.db("innovativeCarCo").collection("orders");
     const reviewCollection = client.db("innovativeCarCo").collection("reviews");
+
+    app.post("/payment/create-payment-intent", verifyJWT, async (req, res) => {
+      const data = req.body;
+      const price = data.price;
+      const amount = price * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
 
     app.get("/parts", verifyJWT, async (req, res) => {
       let sort;
@@ -97,41 +110,64 @@ async function run() {
       }
     };
 
-    app.get("/my-orders", verifyJWT, async (req, res) => {
-      const decodedEmail = req.decoded.email;
-      const email = req.query.email;
-      if (email === decodedEmail) {
-        const myOrders = await orderCollection.find({ email: email }).toArray();
-        res.send(myOrders);
+    app.get("/myOrders", verifyJWT, async (req, res) => {
+      const decodedUid = req.decoded.uid;
+      const uid = req.query.uid;
+      if (uid === decodedUid) {
+        const myItems = await orderCollection.find({ uid: uid }).toArray();
+        res.send(myItems);
       } else {
         res.status(403).send({ message: "forbidden access" });
       }
     });
 
-    app.get("/order/:id", verifyJWT, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: ObjectId(id) };
-      const booking = await orderCollection.findOne(query);
-      res.send(booking);
-    });
-
-    app.post("/order", async (req, res) => {
+    // post order to database with stop duplicates
+    app.post("/orders", verifyJWT, async (req, res) => {
       const order = req.body;
-      const query = {
-        email: order.email,
-        title: order.title,
-      };
-      const exists = await orderCollection.findOne(query);
+      const exists = await orderCollection.findOne({
+        uid: order.uid,
+        id: order.productInfo.id,
+      });
       if (exists) {
         return res.send({ success: false, order: exists });
+      } else {
+        const result = await orderCollection.insertOne(order);
+        res.send({ success: true, order: result });
       }
-      const result = await orderCollection.insertOne(order);
-      return res.send({ success: true, result });
     });
 
-    app.get("/user", verifyJWT, async (req, res) => {
+    app.get("/users", verifyJWT, async (req, res) => {
+      const uid = req.query.uid;
+      if (uid) {
+        const users = await usersCollection.find({ uid: uid }).toArray();
+        res.send(users);
+      } else {
+        res.status(403).send({ message: "forbidden access" });
+      }
+    });
+
+    app.get("/users/all", verifyJWT, async (req, res) => {
       const users = await usersCollection.find({}).toArray();
       res.send(users);
+    });
+
+    // update user data using patch
+    app.patch("/users", verifyJWT, async (req, res) => {
+      const data = req.body;
+      const uid = req.query.uid;
+      const decodedID = req.decoded.uid;
+      const query = { uid: uid };
+      const updateDoc = {
+        $set: data,
+      };
+      if (decodedID === uid) {
+        const result = await usersCollection.updateOne(query, updateDoc);
+        if (result.acknowledged) {
+          res.send({ success: true, message: "Update profile successfully" });
+        }
+      } else {
+        res.status(403).send({ success: false, message: "Forbidden request" });
+      }
     });
 
     app.get("/admin/:email", async (req, res) => {
@@ -151,10 +187,9 @@ async function run() {
       res.send(result);
     });
 
-    app.put("/user/:email", async (req, res) => {
-      const email = req.params.email;
+    app.put("/user", async (req, res) => {
       const user = req.body;
-      const filter = { email: email };
+      const filter = { email: user.email, uid: user.uid };
       const options = { upsert: true };
       const updateDoc = {
         $set: user,
@@ -165,7 +200,7 @@ async function run() {
         options
       );
       const token = jwt.sign(
-        { email: email },
+        { email: user.email, uid: user.uid },
         process.env.ACCESS_TOKEN_SECRET,
         { expiresIn: "7d" }
       );
@@ -176,6 +211,12 @@ async function run() {
       const email = req.params.email;
       const result = await usersCollection.deleteOne({ email: email });
       res.send(result);
+    });
+
+    // get reviews
+    app.get("/reviews", verifyJWT, async (req, res) => {
+      const reviews = await reviewCollection.find({}).toArray();
+      res.send(reviews);
     });
 
     // post review with uid params
