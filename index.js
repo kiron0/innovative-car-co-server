@@ -292,12 +292,12 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/blogs", verifyJWT, async (req, res) => {
+    app.get("/blogs", async (req, res) => {
       const blogs = await blogsCollection.find({}).toArray();
       res.send(blogs);
     });
 
-    app.get("/blogs/:id", verifyJWT, async (req, res) => {
+    app.get("/blogs/:id", async (req, res) => {
       const id = req.params.id;
       const blog = await blogsCollection.findOne({ _id: ObjectId(id) });
       res.send(blog);
