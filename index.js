@@ -42,7 +42,11 @@ async function run() {
     const partsCollection = client.db("innovativeCarCo").collection("parts");
     const usersCollection = client.db("innovativeCarCo").collection("users");
     const orderCollection = client.db("innovativeCarCo").collection("orders");
+    const paymentCollection = client
+      .db("innovativeCarCo")
+      .collection("payments");
     const reviewCollection = client.db("innovativeCarCo").collection("reviews");
+    const blogsCollection = client.db("innovativeCarCo").collection("blogs");
 
     app.post("/payment/create-payment-intent", verifyJWT, async (req, res) => {
       const data = req.body;
@@ -54,6 +58,37 @@ async function run() {
         payment_method_types: ["card"],
       });
       res.send({ clientSecret: paymentIntent.client_secret });
+    });
+
+    app.patch("/myOrders", verifyJWT, async (req, res) => {
+      const data = req.body;
+      const id = req.params.id;
+      const uid = req.query.uid;
+      const decodedID = req.decoded.uid;
+      const query = { uid: uid, _id: ObjectId(id) };
+      const updateDoc = {
+        $set: data,
+      };
+      if (decodedID === uid) {
+        const result = await paymentCollection.updateOne(query, updateDoc);
+        if (result.acknowledged) {
+          res.send({ success: true, message: "Payment successfully" });
+        }
+      } else {
+        res.status(403).send({ success: false, message: "Forbidden request" });
+      }
+    });
+
+    app.patch("/orders", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const updateDoc = {
+        $set: { paid: "true" },
+      };
+      const result = await orderCollection.updateOne(query, updateDoc);
+      if (result.acknowledged) {
+        res.send({ success: true, message: "Payment successfully" });
+      }
     });
 
     app.get("/parts", verifyJWT, async (req, res) => {
@@ -110,11 +145,17 @@ async function run() {
       }
     };
 
-    //get only my orders
-    app.get("/myOrders", verifyJWT, async (req, res) => {
+    //get only my orders with uid
+    app.get("/orders", verifyJWT, async (req, res) => {
       const uid = req.query.uid;
-      const orders = await orderCollection.find({ uid: uid }).toArray();
-      res.send(orders);
+      const decodedID = req.decoded.uid;
+      const query = { uid: uid };
+      if (decodedID === uid) {
+        const myOrders = await orderCollection.find(query).toArray();
+        return res.send(myOrders);
+      } else {
+        return res.status(403).send({ message: "forbidden access" });
+      }
     });
 
     // get all orders
@@ -136,6 +177,13 @@ async function run() {
         const result = await orderCollection.insertOne(order);
         res.send({ success: true, order: result });
       }
+    });
+
+    // delete a order
+    app.delete("/orders/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const result = await orderCollection.deleteOne({ _id: ObjectId(id) });
+      res.send(result);
     });
 
     app.get("/users", verifyJWT, async (req, res) => {
@@ -226,6 +274,17 @@ async function run() {
       const review = req.body;
       const result = await reviewCollection.insertOne(review);
       res.send(result);
+    });
+
+    app.get("/blogs", verifyJWT, async (req, res) => {
+      const blogs = await blogsCollection.find({}).toArray();
+      res.send(blogs);
+    });
+
+    app.get("/blogs/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const blog = await blogsCollection.findOne({ _id: ObjectId(id) });
+      res.send(blog);
     });
   } finally {
   }
