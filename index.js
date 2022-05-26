@@ -110,15 +110,17 @@ async function run() {
       }
     };
 
+    //get only my orders
     app.get("/myOrders", verifyJWT, async (req, res) => {
-      const decodedUid = req.decoded.uid;
       const uid = req.query.uid;
-      if (uid === decodedUid) {
-        const myItems = await orderCollection.find({ uid: uid }).toArray();
-        res.send(myItems);
-      } else {
-        res.status(403).send({ message: "forbidden access" });
-      }
+      const orders = await orderCollection.find({ uid: uid }).toArray();
+      res.send(orders);
+    });
+
+    // get all orders
+    app.get("/orders/all", verifyJWT, verifyAdmin, async (req, res) => {
+      const orders = await orderCollection.find({}).toArray();
+      res.send(orders);
     });
 
     // post order to database with stop duplicates
