@@ -212,7 +212,7 @@ async function run() {
       }
     });
 
-    app.get("/users/all", verifyJWT, async (req, res) => {
+    app.get("/users/all", verifyJWT, verifyAdmin, async (req, res) => {
       const users = await usersCollection.find({}).toArray();
       res.send(users);
     });
