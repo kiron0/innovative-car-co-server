@@ -60,44 +60,60 @@ async function run() {
       res.send({ clientSecret: paymentIntent.client_secret });
     });
 
-    app.patch("/myOrders", verifyJWT, async (req, res) => {
-      const data = req.body;
-      const id = req.params.id;
-      const uid = req.query.uid;
-      const decodedID = req.decoded.uid;
-      const query = { uid: uid, _id: ObjectId(id) };
-      const updateDoc = {
-        $set: data,
-      };
-      if (decodedID === uid) {
-        const result = await paymentCollection.updateOne(query, updateDoc);
-        if (result.acknowledged) {
-          res.send({ success: true, message: "Payment successfully" });
-        }
-      } else {
-        res.status(403).send({ success: false, message: "Forbidden request" });
-      }
+    app.post("/booking", verifyJWT, async (req, res) => {
+      const id = req.query.id;
+      const payment = req.body;
+      const filter = { _id: ObjectId(id) };
+      const result = await paymentCollection.insertOne(payment);
+      res.send(result);
     });
 
-    app.patch("/orders", verifyJWT, async (req, res) => {
+    app.patch("/orders/:id", verifyJWT, async (req, res) => {
+      const body = req.body;
       const id = req.params.id;
-      const query = { _id: ObjectId(id) };
+      const filter = { _id: ObjectId(id) };
       const updateDoc = {
-        $set: { paid: "true" },
+        $set: body,
       };
-      const result = await orderCollection.updateOne(query, updateDoc);
-      if (result.acknowledged) {
-        res.send({ success: true, message: "Payment successfully" });
-      }
+      const updatedBooking = await orderCollection.updateOne(filter, updateDoc);
+      res.send(updatedBooking);
     });
 
-    app.get("/parts", verifyJWT, async (req, res) => {
+    app.patch("/orders/shipped/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const body = req.body;
+      const filter = { _id: ObjectId(id) };
+      const updatedDoc = {
+        $set: body,
+      };
+      const updatedBooking = await orderCollection.updateOne(
+        filter,
+        updatedDoc
+      );
+      res.send(updatedBooking);
+    });
+
+    app.get("/parts", async (req, res) => {
       let sort;
       if (req.query.sort) {
         sort = { _id: -1 };
       }
       const parts = await partsCollection.find({}).sort(sort).toArray();
       res.send(parts);
+    });
+
+    app.patch("/orders/paid/:id", async (req, res) => {
+      const id = req.params.id;
+      const body = req.body;
+      const filter = { _id: ObjectId(id) };
+      const updatedDoc = {
+        $set: body,
+      };
+      const updatedBooking = await orderCollection.updateOne(
+        filter,
+        updatedDoc
+      );
+      res.send(updatedBooking);
     });
 
     app.post("/parts", async (req, res) => {
@@ -180,7 +196,7 @@ async function run() {
     });
 
     // delete a order
-    app.delete("/orders/:id", verifyJWT, verifyAdmin, async (req, res) => {
+    app.delete("/orders/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const result = await orderCollection.deleteOne({ _id: ObjectId(id) });
       res.send(result);
@@ -264,7 +280,7 @@ async function run() {
     });
 
     // get reviews
-    app.get("/reviews", verifyJWT, async (req, res) => {
+    app.get("/reviews", async (req, res) => {
       const reviews = await reviewCollection.find({}).toArray();
       res.send(reviews);
     });
