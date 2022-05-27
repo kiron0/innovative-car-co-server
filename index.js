@@ -106,12 +106,14 @@ async function run() {
       const id = req.params.id;
       const body = req.body;
       const filter = { _id: ObjectId(id) };
+      const options = { upsert: true };
       const updatedDoc = {
         $set: body,
       };
       const updatedBooking = await orderCollection.updateOne(
         filter,
-        updatedDoc
+        updatedDoc,
+        options
       );
       res.send(updatedBooking);
     });
@@ -212,7 +214,7 @@ async function run() {
       }
     });
 
-    app.get("/users/all", verifyJWT, verifyAdmin, async (req, res) => {
+    app.get("/users/all", verifyJWT, async (req, res) => {
       const users = await usersCollection.find({}).toArray();
       res.send(users);
     });
@@ -292,12 +294,12 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/blogs", async (req, res) => {
+    app.get("/blogs", verifyJWT, async (req, res) => {
       const blogs = await blogsCollection.find({}).toArray();
       res.send(blogs);
     });
 
-    app.get("/blogs/:id", async (req, res) => {
+    app.get("/blogs/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const blog = await blogsCollection.findOne({ _id: ObjectId(id) });
       res.send(blog);
