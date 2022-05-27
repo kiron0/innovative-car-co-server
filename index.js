@@ -118,6 +118,22 @@ async function run() {
       res.send(updatedBooking);
     });
 
+    app.patch("/parts/updateQty/:id", async (req, res) => {
+      const id = req.params.id;
+      const body = req.body;
+      const filter = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: body,
+      };
+      const updatedBooking = await partsCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      res.send(updatedBooking);
+    });
+
     app.post("/parts", async (req, res) => {
       const parts = req.body;
       const result = await partsCollection.insertOne(parts);
