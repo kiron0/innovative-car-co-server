@@ -47,6 +47,7 @@ async function run() {
       .collection("payments");
     const reviewCollection = client.db("innovativeCarCo").collection("reviews");
     const blogsCollection = client.db("innovativeCarCo").collection("blogs");
+    const teamsCollection = client.db("innovativeCarCo").collection("teams");
 
     app.post("/payment/create-payment-intent", verifyJWT, async (req, res) => {
       const data = req.body;
@@ -93,7 +94,7 @@ async function run() {
       res.send(updatedBooking);
     });
 
-    app.get("/parts", async (req, res) => {
+    app.get("/parts", verifyJWT, async (req, res) => {
       let sort;
       if (req.query.sort) {
         sort = { _id: -1 };
@@ -145,6 +146,32 @@ async function run() {
         _id: ObjectId(req.params.id),
       });
       res.send(parts);
+    });
+
+    // delete parts with uid
+    app.delete("/parts/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const result = await partsCollection.deleteOne({
+        _id: ObjectId(id),
+      });
+      res.send(result);
+    });
+
+    // update parts with uid
+    app.patch("/parts/update-stock/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const body = req.body;
+      const filter = { _id: ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: body,
+      };
+      const updatedBooking = await partsCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      res.send(updatedBooking);
     });
 
     app.put("/parts/:id", async (req, res) => {
@@ -319,6 +346,11 @@ async function run() {
       const id = req.params.id;
       const blog = await blogsCollection.findOne({ _id: ObjectId(id) });
       res.send(blog);
+    });
+
+    app.get("/teams", async (req, res) => {
+      const teams = await teamsCollection.find({}).toArray();
+      res.send(teams);
     });
   } finally {
   }
